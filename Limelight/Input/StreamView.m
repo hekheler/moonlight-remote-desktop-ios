@@ -942,11 +942,54 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
         }
         // If the OFF request could not be queued, retain the draft rather
         // than sending it into an unknown IME state. No retry or replay.
-        if (result == 0) result = LiSendUtf8TextEvent(utf8.bytes, (unsigned int)utf8.length);
+        if (result == 0) result = [self sendTextAsKeys:text];
         Log(LOG_I, @"TextInput explicitSend units=%lu utf8Bytes=%lu queueResult=%d",
             (unsigned long)text.length, (unsigned long)utf8.length, result);
         dispatch_async(dispatch_get_main_queue(), ^{ completion(result); });
     });
+}
+
+// Runs on textSendQueue. Sunshine on Linux types UTF-8 text by simulating
+// Ctrl+Shift+U Unicode entry for every character, which Steam, browsers and
+// many other apps garble. Anything a US keyboard can type is sent as real key
+// presses instead, as a physical keyboard would; only the rest (accents,
+// emoji) still goes as text.
+- (int)sendTextAsKeys:(NSString*)text {
+    __block int result = 0;
+    [text enumerateSubstringsInRange:NSMakeRange(0, text.length)
+                             options:NSStringEnumerationByComposedCharacterSequences
+                          usingBlock:^(NSString *character, NSRange range, NSRange enclosing, BOOL *stop) {
+        struct KeyEvent event = {0};
+        if (character.length == 1) {
+            unichar c = [character characterAtIndex:0];
+            if (c == '\n' || c == '\r') {
+                event.keycode = 0x0D; // Enter
+            }
+            else {
+                event = [KeyboardSupport translateKeyEvent:c withModifierFlags:0];
+            }
+        }
+        if (event.keycode != 0) {
+            if (event.modifier != 0) {
+                result = result ?: LiSendKeyboardEvent(event.modifierKeycode, KEY_ACTION_DOWN, event.modifier);
+            }
+            result = result ?: LiSendKeyboardEvent2(event.keycode, KEY_ACTION_DOWN, event.modifier, SS_KBE_FLAG_NON_NORMALIZED);
+            usleep(10 * 1000);
+            result = result ?: LiSendKeyboardEvent2(event.keycode, KEY_ACTION_UP, event.modifier, SS_KBE_FLAG_NON_NORMALIZED);
+            if (event.modifier != 0) {
+                result = result ?: LiSendKeyboardEvent(event.modifierKeycode, KEY_ACTION_UP, event.modifier);
+            }
+            usleep(10 * 1000);
+        }
+        else {
+            NSData *utf8 = [character dataUsingEncoding:NSUTF8StringEncoding];
+            result = LiSendUtf8TextEvent(utf8.bytes, (unsigned int)utf8.length);
+        }
+        if (result != 0) {
+            *stop = YES;
+        }
+    }];
+    return result;
 }
 
 - (void)sendTextBackspace:(void (^)(int result))completion {

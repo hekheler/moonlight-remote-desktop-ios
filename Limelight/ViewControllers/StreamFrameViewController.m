@@ -920,9 +920,9 @@
     }
     // Acceleration, like a laptop trackpad. The PC never sees relative moves
     // here, so its own pointer acceleration does not apply; this replaces it.
-    // A slow finger moves the pointer 1.25 times as far across the picture as
-    // the finger moves across the screen, for fine control. A fast flick
-    // ramps up to 4 times, to cross the desktop in one swipe. The finger speed
+    // A slow finger moves the pointer exactly as far across the picture as the
+    // finger moves across the screen, for fine control. A fast flick ramps up
+    // to 2.5 times, to cross the desktop in a swipe or two. The finger speed
     // is smoothed so the gain does not twitch, and the trackpad speed setting
     // scales the whole curve (its default of 2 leaves it as described).
     CFTimeInterval now = CACurrentMediaTime();
@@ -930,7 +930,7 @@
     _lastPointerMove = now;
     CGFloat speedNow = elapsed > 0 && elapsed < 0.1 ? hypot(delta.x, delta.y) / elapsed : 0;
     _fingerSpeed = elapsed < 0.1 ? 0.6 * _fingerSpeed + 0.4 * speedNow : 0;
-    const CGFloat slowSpeed = 150, fastSpeed = 1500, slowGain = 1.25, fastGain = 4.0;
+    const CGFloat slowSpeed = 250, fastSpeed = 2000, slowGain = 1.0, fastGain = 2.5;
     CGFloat ramp = MIN(MAX((_fingerSpeed - slowSpeed) / (fastSpeed - slowSpeed), 0), 1);
     CGFloat gain = slowGain + (fastGain - slowGain) * ramp;
     CGFloat scale = gain * MLTrackpadSpeed() / 2.0 / MAX(_scrollView.zoomScale, 0.01);
@@ -997,6 +997,10 @@
     _composeField.layer.cornerRadius = 8;
     _composeField.draftText = @"";
     _composeField.autocorrectionType = UITextAutocorrectionTypeDefault;
+    // Curly quotes and long dashes have no key on a keyboard, so they could
+    // only be sent as text, which Linux apps often garble
+    _composeField.smartQuotesType = UITextSmartQuotesTypeNo;
+    _composeField.smartDashesType = UITextSmartDashesTypeNo;
     _composeField.autocapitalizationType = UITextAutocapitalizationTypeNone;
     _composeField.accessibilityLabel = @"Text to send to the PC";
     _composeHint = [[UILabel alloc] init];
