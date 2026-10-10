@@ -24,8 +24,8 @@ out=Build/ipa
 rm -rf "$out/Payload"
 mkdir -p "$out/Payload"
 cp -R "$app" "$out/Payload/"
-(cd "$out" && rm -f "MoonlightRemote-$version.ipa" && /usr/bin/zip -qry "MoonlightRemote-$version.ipa" Payload && rm -rf Payload)
-echo "Saved $out/MoonlightRemote-$version.ipa"
+(cd "$out" && rm -f "Hecate-$version.ipa" && /usr/bin/zip -qry "Hecate-$version.ipa" Payload && rm -rf Payload)
+echo "Saved $out/Hecate-$version.ipa"
 
 if [ -n "${DEVICE_ID:-}" ]; then
     xcrun devicectl device install app --device "$DEVICE_ID" "$app"
