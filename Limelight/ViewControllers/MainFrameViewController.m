@@ -403,6 +403,8 @@
 #else
     // Tapping a PC on Home streams right away; afterwards Home shows the PCs again
     TemporaryHost* _directLaunchHost;
+    // Display chosen in the stream; opened as soon as Home is back
+    TemporaryHost* _switchHost;
     // Tells the Tailscale sheet whether pairing the PC it chose succeeded
     void (^_pairingFinished)(BOOL paired);
     // Wi-Fi / cellular changes: recheck every PC right away so Home shows the
@@ -831,6 +833,41 @@ static NSMutableSet* hostList;
     _directLaunchHost = host;
     _showHiddenApps = NO;
     [self hostClicked:host view:view ?: self.view];
+}
+
+// Same machine: Sunshine reports the same network card, or the address is the
+// same apart from the port. Each display is its own Sunshine instance, so it
+// shows up as a separate PC.
+- (BOOL) host:(TemporaryHost*)host isSameMachineAs:(TemporaryHost*)other {
+    BOOL sameMac = host.mac.length > 0 && ![host.mac isEqualToString:@"00:00:00:00:00:00"] &&
+        [host.mac caseInsensitiveCompare:other.mac ?: @""] == NSOrderedSame;
+    NSString* address = [Utils addressPortStringToAddress:host.address];
+    NSString* otherAddress = [Utils addressPortStringToAddress:other.address];
+    BOOL sameAddress = address.length > 0 && [address caseInsensitiveCompare:otherAddress ?: @""] == NSOrderedSame;
+    return sameMac || sameAddress;
+}
+
+- (NSArray<TemporaryHost*>*) otherDisplaysOfSelectedHost {
+    TemporaryHost* current = _selectedHost;
+    NSMutableArray<TemporaryHost*>* displays = [NSMutableArray array];
+    if (current == nil) {
+        return displays;
+    }
+    @synchronized (hostList) {
+        for (TemporaryHost* host in hostList) {
+            if (host != current && host.pairState == PairStatePaired && [self host:host isSameMachineAs:current]) {
+                [displays addObject:host];
+            }
+        }
+    }
+    [displays sortUsingComparator:^NSComparisonResult(TemporaryHost* a, TemporaryHost* b) {
+        return [a.name localizedStandardCompare:b.name];
+    }];
+    return displays;
+}
+
+- (void) switchToHostAfterStream:(TemporaryHost*)host {
+    _switchHost = host;
 }
 
 - (void) showSettingsForHost:(TemporaryHost*)host {
@@ -1703,6 +1740,12 @@ static NSMutableSet* hostList;
     [self.tabBarController setNeedsUpdateOfHomeIndicatorAutoHidden];
     [self.tabBarController setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
     [self.tabBarController setNeedsUpdateOfPrefersPointerLocked];
+    if (_switchHost != nil) {
+        // Back from a stream to switch display: open the other one straight away
+        TemporaryHost* host = _switchHost;
+        _switchHost = nil;
+        [self connectToHost:host view:nil];
+    }
 
     [_hostRefreshTimer invalidate];
     __weak typeof(self) weakSelf = self;

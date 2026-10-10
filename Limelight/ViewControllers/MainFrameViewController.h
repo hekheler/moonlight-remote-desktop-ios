@@ -24,4 +24,11 @@
 
 // Adds a PC by address; with pair set it is opened right away to pair.
 - (void) addHostWithAddress:(NSString*)hostAddress pair:(BOOL)pair;
+#if !TARGET_OS_TV
+// Other displays of the PC being streamed: further Sunshine instances on the
+// same machine, one per monitor, each added and paired as a PC.
+- (NSArray<TemporaryHost*>*) otherDisplaysOfSelectedHost;
+// Starts Desktop on this PC once the current stream has closed.
+- (void) switchToHostAfterStream:(TemporaryHost*)host;
+#endif
 @end

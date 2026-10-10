@@ -25,6 +25,8 @@
 // The settings key in the PC key bar
 - (void) streamSettingsRequested;
 - (void) streamToggleTextInput;
+// The display key in the PC key bar
+- (void) streamSwitchDisplayRequested;
 // A trackpad move in screen points. Returns YES when the controller sent
 // it to the PC itself (portrait fill), NO to send it as a relative move.
 - (BOOL) streamPointerMovedBy:(CGPoint)delta;

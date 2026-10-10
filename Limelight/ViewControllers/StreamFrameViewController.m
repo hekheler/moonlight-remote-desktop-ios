@@ -1229,6 +1229,52 @@
     [self.navigationController popToRootViewControllerAnimated:YES];
 }
 
+#if !TARGET_OS_TV
+// ---- Switching to another of the PC's displays
+
+- (MainFrameViewController*)homeViewController {
+    for (UIViewController* controller in self.navigationController.viewControllers) {
+        if ([controller isKindOfClass:[MainFrameViewController class]]) {
+            return (MainFrameViewController*)controller;
+        }
+    }
+    return nil;
+}
+
+- (void)streamSwitchDisplayRequested {
+    MainFrameViewController* home = [self homeViewController];
+    NSArray<TemporaryHost*>* displays = [home otherDisplaysOfSelectedHost] ?: @[];
+    if (displays.count == 0) {
+        UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"No Other Display"
+                                                                       message:@"Each of the PC's displays needs its own Sunshine, added here as a PC and paired. None was found for this PC."
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:ML(@"OK") style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+    if (displays.count == 1) {
+        [self switchToDisplay:displays.firstObject];
+        return;
+    }
+    UIAlertController* menu = [UIAlertController alertControllerWithTitle:@"Switch Display" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+    for (TemporaryHost* host in displays) {
+        [menu addAction:[UIAlertAction actionWithTitle:host.name style:UIAlertActionStyleDefault handler:^(UIAlertAction* action) {
+            [self switchToDisplay:host];
+        }]];
+    }
+    [menu addAction:[UIAlertAction actionWithTitle:ML(@"Cancel") style:UIAlertActionStyleCancel handler:nil]];
+    menu.popoverPresentationController.sourceView = self.view;
+    menu.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
+    [self presentViewController:menu animated:YES completion:nil];
+}
+
+// Ends this stream; Home then starts Desktop on the chosen display
+- (void)switchToDisplay:(TemporaryHost*)host {
+    [[self homeViewController] switchToHostAfterStream:host];
+    [self returnToMainFrame];
+}
+#endif
+
 - (void)streamVideoSizeChanged {
     [self.view setNeedsLayout];
 }

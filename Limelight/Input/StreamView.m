@@ -476,11 +476,15 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     UIButton* settings = key(ML(@"Settings"), @"gearshape", 0, NO);
     [settings removeTarget:self action:@selector(accessoryKeyTapped:) forControlEvents:UIControlEventPrimaryActionTriggered];
     [settings addTarget:self action:@selector(settingsKeyTapped) forControlEvents:UIControlEventPrimaryActionTriggered];
+    // Switch to another of the PC's displays
+    UIButton* display = key(@"Display", @"display.2", 0, NO);
+    [display removeTarget:self action:@selector(accessoryKeyTapped:) forControlEvents:UIControlEventPrimaryActionTriggered];
+    [display addTarget:self action:@selector(displayKeyTapped) forControlEvents:UIControlEventPrimaryActionTriggered];
     NSArray* rows = @[@[key(@"Esc", nil, 0x1B, NO), key(@"Tab", nil, 0x09, NO), key(@"Ctrl", nil, 0xA2, YES),
                         key(@"Alt", nil, 0xA4, YES), key(@"Shift", nil, 0xA0, YES), key(@"Win", @"windows", 0x5B, NO),
                         key(@"Delete", @"delete.right", 0x2E, NO)],
                       @[key(@"Left", @"arrow.left", 0x25, NO), key(@"Up", @"arrow.up", 0x26, NO), key(@"Down", @"arrow.down", 0x28, NO),
-                        key(@"Right", @"arrow.right", 0x27, NO), key(@"Home", nil, 0x24, NO), key(@"End", nil, 0x23, NO), settings]];
+                        key(@"Right", @"arrow.right", 0x27, NO), key(@"Home", nil, 0x24, NO), key(@"End", nil, 0x23, NO), display, settings]];
     UIStackView* stack = [[UIStackView alloc] init];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 6;
@@ -492,6 +496,12 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
         [stack addArrangedSubview:line];
     }
     return stack;
+}
+
+- (void)displayKeyTapped {
+    if ([interactionDelegate respondsToSelector:@selector(streamSwitchDisplayRequested)]) {
+        [interactionDelegate streamSwitchDisplayRequested];
+    }
 }
 
 - (void)settingsKeyTapped {
