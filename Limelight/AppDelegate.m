@@ -8,14 +8,13 @@
 
 #import "AppDelegate.h"
 #if !TARGET_OS_TV
-#import "EmbeddedTailscale.h"
 #import "Localization.h"
 #import "SWRevealViewController.h"
 #import "MainFrameViewController.h"
 #import "SettingsViewController.h"
 
-// The app's root: the standard tab bar (Liquid Glass on iOS 26+) with Home,
-// Tailscale and Settings. Status bar and system gestures follow the screen
+// The app's root: the standard tab bar (Liquid Glass on iOS 26+) with Home
+// and Settings. Status bar and system gestures follow the screen
 // shown in the selected tab, so the stream can hide the home indicator.
 @interface MoonlightTabBarController : UITabBarController
 @end
@@ -79,24 +78,13 @@ static UIViewController *MoonlightMakeRoot(UIViewController *storyboardRoot) {
 
     home.tabBarItem = [[UITabBarItem alloc] initWithTitle:ML(@"Home") image:[UIImage systemImageNamed:@"house"] selectedImage:[UIImage systemImageNamed:@"house.fill"]];
 
-    MainFrameViewController *mainFrame = nil;
-    if ([home isKindOfClass:[UINavigationController class]]) {
-        mainFrame = (MainFrameViewController *)((UINavigationController *)home).viewControllers.firstObject;
-    }
     MoonlightTabBarController *tabs = [[MoonlightTabBarController alloc] init];
-    __weak MoonlightTabBarController *weakTabs = tabs;
-    __weak MainFrameViewController *weakMainFrame = mainFrame;
-    UIViewController *tailscale = [EmbeddedTailscale tabControllerOnPeerSelected:^(NSString *address) {
-        weakTabs.selectedIndex = 0;
-        [weakMainFrame addHostWithAddress:address pair:YES];
-    }];
-    tailscale.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Tailscale" image:[EmbeddedTailscale logoImage] selectedImage:nil];
 
     MoonlightSettingsViewController *settingsList = [[MoonlightSettingsViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
     UINavigationController *settingsNavigation = [[UINavigationController alloc] initWithRootViewController:settingsList];
     settingsNavigation.tabBarItem = [[UITabBarItem alloc] initWithTitle:ML(@"Settings") image:[UIImage systemImageNamed:@"gearshape"] selectedImage:[UIImage systemImageNamed:@"gearshape.fill"]];
 
-    tabs.viewControllers = @[home, tailscale, settingsNavigation];
+    tabs.viewControllers = @[home, settingsNavigation];
     return tabs;
 }
 
@@ -145,7 +133,6 @@ static NSString* DB_NAME = @"Limelight_iOS.sqlite";
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 #if !TARGET_OS_TV
-    [EmbeddedTailscale restore];
     UIApplicationShortcutItem* shortcut = [launchOptions valueForKey:UIApplicationLaunchOptionsShortcutItemKey];
     if (shortcut != nil) {
         _pcUuidToLoad = (NSString*)[shortcut.userInfo objectForKey:@"UUID"];

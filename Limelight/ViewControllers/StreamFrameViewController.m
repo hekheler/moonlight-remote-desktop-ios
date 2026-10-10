@@ -511,12 +511,12 @@
         [weakSelf resetView];
     });
     _resetViewButton.hidden = YES;
-    _panModeButton = glassCircle(@"hand.draw", @"映像を移動", ^{
+    _panModeButton = glassCircle(@"hand.draw", @"Move Picture", ^{
         typeof(self) s = weakSelf;
         if (!s) return;
         BOOL enabled = !s->_streamView.panOnly;
         [s setPanMode:enabled];
-        UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, enabled ? @"指で映像を移動できます" : @"PCのタッチ操作に戻りました");
+        UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, enabled ? @"Drag to move the picture" : @"Back to controlling the PC");
     });
     _specialKeysButton = glassCircle(@"command", ML(@"Special Keys"), ^{
         typeof(self) strongSelf = weakSelf;
@@ -762,7 +762,7 @@
     UIButtonConfiguration *configuration = _panModeButton.configuration;
     configuration.baseForegroundColor = enabled ? UIColor.systemBlueColor : UIColor.whiteColor;
     _panModeButton.configuration = configuration;
-    _panModeButton.accessibilityLabel = enabled ? @"映像移動中・タップでPC操作に戻る" : @"映像を移動";
+    _panModeButton.accessibilityLabel = enabled ? @"Moving the picture. Tap to control the PC again" : @"Move Picture";
     [_scrollView.panGestureRecognizer setMinimumNumberOfTouches:enabled ? 1 : 2];
     [self updateZoomRoom];
 }
@@ -829,7 +829,7 @@
     _composeField.draftText = @"";
     _composeField.autocorrectionType = UITextAutocorrectionTypeDefault;
     _composeField.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    _composeField.accessibilityLabel = @"PCへ送る文字列";
+    _composeField.accessibilityLabel = @"Text to send to the PC";
     _composeHint = [[UILabel alloc] init];
     _composeHint.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption2];
     _composeHint.textColor = UIColor.secondaryLabelColor;
@@ -837,7 +837,7 @@
     _composeHint.adjustsFontSizeToFitWidth = YES;
     _composeHint.minimumScaleFactor = 0.8;
     UIButtonConfiguration *config = [UIButtonConfiguration filledButtonConfiguration];
-    config.title = @"送信";
+    config.title = @"Send";
     __weak typeof(self) weakSelf = self;
     _composeField.canDeleteRemote = ^BOOL{
         typeof(self) s = weakSelf;
@@ -849,7 +849,7 @@
         [s->_streamView sendTextBackspace:^(int result) {
             typeof(self) current = weakSelf;
             if (current && result != 0 && current->_composeField.isFirstResponder) {
-                current->_composeHint.text = @"削除を送れません。接続を確認してください";
+                current->_composeHint.text = @"Could not send delete. Check the connection.";
             }
         }];
     };
@@ -881,7 +881,7 @@
             }
             s->_composeHint.text = [s composeInputHint];
         } else {
-            s->_composeHint.text = @"送信できません。接続を確認してください";
+            s->_composeHint.text = @"Could not send. Check the connection.";
         }
         s->_sendTextButton.enabled = s->_composeField.draftText.length > 0;
     }];
@@ -905,8 +905,8 @@
 }
 
 - (NSString *)composeInputHint {
-    return MLBoolPreference(MLImeOffBeforeTextSendKey, YES) ?
-        @"iPhoneで変換・確定してから「送信」" : @"PCの日本語入力はOFF（A）にしてください";
+    return MLBoolPreference(MLImeOffBeforeTextSendKey, NO) ?
+        @"Finish typing on the iPhone, then tap Send" : @"Type here, then tap Send";
 }
 
 - (void)textViewDidBeginEditing:(UITextView *)textView {

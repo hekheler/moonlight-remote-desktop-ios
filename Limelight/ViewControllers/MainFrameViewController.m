@@ -50,8 +50,6 @@
 - (void) showSettingsForHost:(TemporaryHost*)host;
 - (void) testNetwork;
 - (void) confirmRemoveHost:(TemporaryHost*)host view:(UIView*)view;
-- (void) showTailscaleSetup;
-- (void) showTailscalePeerPicker;
 @end
 
 @interface HostCardView : UIControl
@@ -255,7 +253,7 @@
     NSString* state = host.state == StateOnline ? ML(@"Online") : host.state == StateOffline ? ML(@"Offline") : ML(@"Checking…");
     NSString* route = @"—";
     if (host.activeAddress != nil && host.state == StateOnline) {
-        route = [NSString stringWithFormat:@"%@（%@）", [EmbeddedTailscale matchesAddress:host.activeAddress] ? @"Tailscale" : @"LAN", host.activeAddress];
+        route = [NSString stringWithFormat:@"%@ (%@)", [EmbeddedTailscale matchesAddress:host.activeAddress] ? @"Tailscale" : @"LAN", host.activeAddress];
     }
 
     NSMutableArray* connection = [NSMutableArray array];
@@ -939,12 +937,6 @@ static NSMutableSet* hostList;
     [menu addAction:[UIAlertAction actionWithTitle:ML(@"PC Settings") style:UIAlertActionStyleDefault handler:^(UIAlertAction* action) {
         [self showSettingsForHost:host];
     }]];
-    if ([EmbeddedTailscale matchesAddress:host.address]) {
-        // "Test Network" only checks the internet; this checks the tailnet path and Sunshine
-        [menu addAction:[UIAlertAction actionWithTitle:ML(@"Tailscale Connection Test") style:UIAlertActionStyleDefault handler:^(UIAlertAction* action) {
-            [self showTailscaleSetup];
-        }]];
-    }
 #endif
     [menu addAction:[UIAlertAction actionWithTitle:ML(@"Test Network") style:UIAlertActionStyleDefault handler:^(UIAlertAction* action) {
         [self testNetwork];
@@ -1053,20 +1045,6 @@ static NSMutableSet* hostList;
 }
 
 #if !TARGET_OS_TV
-// Choosing the PC to reach through Tailscale: a sheet over Home that stays
-// open while pairing and closes once it succeeds
-- (void) showTailscalePeerPicker {
-    __weak typeof(self) weakSelf = self;
-    [EmbeddedTailscale presentPickerFrom:[self activeViewController] onConnect:^(NSString *address, void (^finished)(BOOL paired)) {
-        [weakSelf addHostWithAddress:address pair:YES finished:^(BOOL paired) {
-            finished(paired);
-            if (paired) {
-                [weakSelf showHostSelectionView];
-            }
-        }];
-    }];
-}
-
 - (void) startNetworkMonitor {
     _pathMonitor = nw_path_monitor_create();
     nw_path_monitor_set_queue(_pathMonitor, dispatch_get_main_queue());
@@ -1117,11 +1095,6 @@ static NSMutableSet* hostList;
             finished(paired);
         });
     }
-}
-
-// Account and settings: the Tailscale tab
-- (void) showTailscaleSetup {
-    self.tabBarController.selectedIndex = 1;
 }
 #endif
 
@@ -1506,7 +1479,8 @@ static NSMutableSet* hostList;
 
 // Settings open as a sheet from the bottom instead of the side drawer.
 - (void)showSettings {
-    self.tabBarController.selectedIndex = 2;
+    // Settings is the last tab
+    self.tabBarController.selectedIndex = self.tabBarController.viewControllers.count - 1;
 }
 
 - (void)showHomeTab {
@@ -1548,17 +1522,13 @@ static NSMutableSet* hostList;
 
     // Top bar: "+" opens the ways to add a PC
     __weak typeof(self) weakSelf = self;
-    UIAction* addTailscale = [UIAction actionWithTitle:ML(@"Add with Tailscale") image:[EmbeddedTailscale logoImage] identifier:nil handler:^(__kindof UIAction* action) {
-        [weakSelf showTailscalePeerPicker];
-    }];
-    addTailscale.subtitle = ML(@"Choose a PC from your tailnet. Works away from home.");
     UIAction* addAddress = [UIAction actionWithTitle:ML(@"Add by IP Address") image:[UIImage systemImageNamed:@"keyboard"] identifier:nil handler:^(__kindof UIAction* action) {
         [weakSelf addHostClicked];
     }];
     addAddress.subtitle = ML(@"For a PC on this network");
     UIAction* automatic = [UIAction actionWithTitle:ML(@"PCs on this Wi-Fi appear automatically") image:[UIImage systemImageNamed:@"wifi"] identifier:nil handler:^(__kindof UIAction* action) {}];
     automatic.attributes = UIMenuElementAttributesDisabled;
-    UIMenu* addMenu = [UIMenu menuWithTitle:@"" children:@[addTailscale, addAddress,
+    UIMenu* addMenu = [UIMenu menuWithTitle:@"" children:@[addAddress,
                                                             [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:@[automatic]]]];
     _addButton = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"plus"] menu:addMenu];
     _addButton.accessibilityLabel = ML(@"Add PC");

@@ -923,7 +923,7 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
 
 - (void)sendCommittedText:(NSString*)text completion:(void (^)(int result))completion {
     NSData *utf8 = [text dataUsingEncoding:NSUTF8StringEncoding];
-    BOOL disableIme = MLBoolPreference(MLImeOffBeforeTextSendKey, YES);
+    BOOL disableIme = MLBoolPreference(MLImeOffBeforeTextSendKey, NO);
     dispatch_async(textSendQueue, ^{
         int result = utf8.length ? 0 : -1;
         if (result == 0 && disableIme) {

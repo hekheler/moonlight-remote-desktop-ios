@@ -906,7 +906,7 @@ static int MLBitrateIndex(NSInteger bitrate) {
     for (NSArray* entry in sizes) {
         NSInteger width = [entry[1] integerValue], height = [entry[2] integerValue];
         NSString* title = [entry[0] hasSuffix:@"p"] || [entry[0] isEqualToString:@"4K"] ? entry[0] :
-            [NSString stringWithFormat:@"%@（%ld×%ld）", entry[0], (long)width, (long)height];
+            [NSString stringWithFormat:@"%@ (%ld×%ld)", entry[0], (long)width, (long)height];
         UIAction* action = [UIAction actionWithTitle:title image:nil identifier:nil handler:^(__kindof UIAction* a) {
             [weakSelf setResolutionWidth:width height:height];
         }];
@@ -1015,15 +1015,15 @@ static int MLBitrateIndex(NSInteger bitrate) {
               @"toggle": ^(BOOL on) { typeof(self) s = weakSelf; s->_statsOverlay = on; [s save]; }},
         ]},
         @{@"title": ML(@"Input"), @"footer": ML(@"Touchpad moves the pointer like a laptop trackpad. Touchscreen clicks where you touch."), @"rows": @[
-            @{@"title": @"開始時に映像移動をON", @"switch": @(MLBoolPreference(MLPanOnStartKey, YES)),
+            @{@"title": @"Start in Move Picture Mode", @"switch": @(MLBoolPreference(MLPanOnStartKey, YES)),
               @"toggle": ^(BOOL on) { [NSUserDefaults.standardUserDefaults setBool:on forKey:MLPanOnStartKey]; }},
-            @{@"title": @"横画面でキーボードに合わせて映像を上へ移動", @"switch": @(MLBoolPreference(MLShiftForKeyboardKey, NO)),
-              @"detail": @"キーボードを閉じると元の位置へ戻ります。",
+            @{@"title": @"Move Picture Up for the Keyboard in Landscape", @"switch": @(MLBoolPreference(MLShiftForKeyboardKey, NO)),
+              @"detail": @"It moves back when the keyboard closes.",
               @"toggle": ^(BOOL on) { [NSUserDefaults.standardUserDefaults setBool:on forKey:MLShiftForKeyboardKey]; }},
-            @{@"title": @"文字入力", @"value": @"入力欄で変換して送信",
-              @"detail": @"iPhoneで変換し、送信ボタンでまとめて送ります。"},
-            @{@"title": @"文字送信時にPCのIMEをOFF", @"switch": @(MLBoolPreference(MLImeOffBeforeTextSendKey, YES)),
-              @"detail": @"送信ボタンを押すと、IME OFF、文字列の順に送ります。送信後もAのままにします。Windows以外ではOFFにしてください。",
+            @{@"title": @"Text Input", @"value": @"Type, then Send",
+              @"detail": @"Type on the iPhone, then send it all at once with the Send button."},
+            @{@"title": @"Turn Off PC Input Method Before Sending", @"switch": @(MLBoolPreference(MLImeOffBeforeTextSendKey, NO)),
+              @"detail": @"Sends the Windows IME off key before the text. Only for a Windows PC with a Japanese input method. Leave off for anything else.",
               @"toggle": ^(BOOL on) { [NSUserDefaults.standardUserDefaults setBool:on forKey:MLImeOffBeforeTextSendKey]; }},
             @{@"title": ML(@"Touch Mode"), @"value": _absoluteTouch ? ML(@"Touchscreen") : ML(@"Touchpad"),
               @"menu": [self choiceMenuWithTitles:@[ML(@"Touchpad"), ML(@"Touchscreen")] values:@[@0, @1] current:_absoluteTouch handler:^(NSInteger value) {
@@ -1045,7 +1045,8 @@ static int MLBitrateIndex(NSInteger bitrate) {
                   [weakSelf rebuild];
               }]},
         ]},
-        @{@"title": ML(@"PC"), @"footer": @"", @"rows": @[
+        // Version from the build settings (MARKETING_VERSION), shown under the last section
+        @{@"title": ML(@"PC"), @"footer": [NSString stringWithFormat:@"Version %@", NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"]], @"rows": @[
             @{@"title": ML(@"Play Audio on PC"), @"switch": @(_audioOnPC),
               @"toggle": ^(BOOL on) { typeof(self) s = weakSelf; s->_audioOnPC = on; [s save]; }},
             @{@"title": ML(@"Optimize Game Settings"), @"switch": @(_optimizeGames),
