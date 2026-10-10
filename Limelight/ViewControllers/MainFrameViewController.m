@@ -57,7 +57,11 @@
 @property (nonatomic, copy) void (^onLongPress)(HostCardView* card);
 @property (nonatomic, copy) void (^onPower)(HostCardView* card);
 @property (nonatomic, copy) void (^onSettings)(HostCardView* card);
+// One PC with several displays (one Sunshine each): picking one here makes
+// connect, wake and settings use it
+@property (nonatomic, copy) void (^onDisplayChosen)(NSInteger index);
 - (instancetype)initWithHost:(TemporaryHost*)host;
+- (instancetype)initWithHost:(TemporaryHost*)host title:(NSString*)title displays:(NSArray<NSString*>*)displays selected:(NSInteger)selected;
 @end
 
 // One PC on Home: tap to connect; power (Wake-on-LAN), connect and settings
@@ -65,6 +69,10 @@
 @implementation HostCardView
 
 - (instancetype)initWithHost:(TemporaryHost*)host {
+    return [self initWithHost:host title:nil displays:nil selected:0];
+}
+
+- (instancetype)initWithHost:(TemporaryHost*)host title:(NSString*)title displays:(NSArray<NSString*>*)displays selected:(NSInteger)selected {
     self = [super initWithFrame:CGRectZero];
     self.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
     self.layer.cornerRadius = 20;
@@ -84,7 +92,7 @@
 
     UILabel* name = [[UILabel alloc] init];
     name.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-    name.text = host.name;
+    name.text = title ?: host.name;
 
     UILabel* status = [[UILabel alloc] init];
     status.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
@@ -101,7 +109,10 @@
             state = ML(@"Checking…");
             break;
     }
-    NSString* route = host.activeAddress == nil ? nil : [EmbeddedTailscale matchesAddress:host.activeAddress] ? @"Tailscale" : @"LAN";
+    // How the PC is reached right now. The embedded Tailscale is gone, so a
+    // Tailscale address means the iPhone's own Tailscale app.
+    NSString* route = host.activeAddress == nil ? nil :
+        [EmbeddedTailscale isTailscaleAddress:[Utils addressPortStringToAddress:host.activeAddress]] ? @"Tailscale" : @"LAN";
     status.text = route != nil && host.state != StateOffline ? [NSString stringWithFormat:@"%@ · %@", state, route] : state;
 
     UIView* indicator;
@@ -151,10 +162,30 @@
     actions.spacing = 8;
     actions.distribution = UIStackViewDistributionFillEqually;
 
-    for (UIView* view in @[iconBackground, icon, text, indicator, actions]) {
+    UISegmentedControl* picker = nil;
+    if (displays.count > 1) {
+        picker = [[UISegmentedControl alloc] initWithItems:displays];
+        picker.selectedSegmentIndex = selected;
+        [picker addTarget:self action:@selector(displayChanged:) forControlEvents:UIControlEventValueChanged];
+        picker.accessibilityLabel = ML(@"Display");
+    }
+
+    NSMutableArray<UIView*>* views = [@[iconBackground, icon, text, indicator, actions] mutableCopy];
+    if (picker != nil) {
+        [views addObject:picker];
+    }
+    for (UIView* view in views) {
         view.translatesAutoresizingMaskIntoConstraints = NO;
-        view.userInteractionEnabled = view == actions;
+        view.userInteractionEnabled = view == actions || view == picker;
         [self addSubview:view];
+    }
+    if (picker != nil) {
+        [NSLayoutConstraint activateConstraints:@[
+            [picker.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14],
+            [picker.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-14],
+            [picker.bottomAnchor constraintEqualToAnchor:actions.topAnchor constant:-10],
+            [picker.heightAnchor constraintEqualToConstant:32],
+        ]];
     }
     [NSLayoutConstraint activateConstraints:@[
         [iconBackground.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14],
@@ -197,6 +228,10 @@
 
 - (void)settingsTapped {
     if (self.onSettings) self.onSettings(self);
+}
+
+- (void)displayChanged:(UISegmentedControl*)picker {
+    if (self.onDisplayChosen) self.onDisplayChosen(picker.selectedSegmentIndex);
 }
 
 - (void)longPressed:(UILongPressGestureRecognizer*)recognizer {
@@ -847,6 +882,73 @@ static NSMutableSet* hostList;
     return sameMac || sameAddress;
 }
 
+// Paired PCs grouped by machine, keeping the list's order. A group with
+// several hosts is one PC with a Sunshine instance per display.
+- (NSArray<NSArray<TemporaryHost*>*>*) machineGroupsOfHosts:(NSArray<TemporaryHost*>*)hosts {
+    NSMutableArray<NSMutableArray<TemporaryHost*>*>* groups = [NSMutableArray array];
+    for (TemporaryHost* host in hosts) {
+        NSMutableArray<TemporaryHost*>* match = nil;
+        for (NSMutableArray<TemporaryHost*>* group in groups) {
+            if ([self host:host isSameMachineAs:group.firstObject]) {
+                match = group;
+                break;
+            }
+        }
+        if (match != nil) {
+            [match addObject:host];
+        }
+        else {
+            [groups addObject:[NSMutableArray arrayWithObject:host]];
+        }
+    }
+    return groups;
+}
+
+// The words the display names share, e.g. "Desk" from "Desk" and
+// "Desk DP-3"; the first name if they share nothing
+- (NSString*) machineNameOfGroup:(NSArray<TemporaryHost*>*)group {
+    NSString* prefix = group.firstObject.name ?: @"";
+    for (TemporaryHost* host in group) {
+        prefix = [prefix commonPrefixWithString:host.name ?: @"" options:0];
+    }
+    prefix = [prefix stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" -·:"]];
+    return prefix.length > 0 ? prefix : group.firstObject.name;
+}
+
+// Each display's name without the machine name; "Main" for the one that is
+// just the machine name
+- (NSArray<NSString*>*) displayLabelsOfGroup:(NSArray<TemporaryHost*>*)group {
+    NSString* machine = [self machineNameOfGroup:group];
+    NSMutableArray<NSString*>* labels = [NSMutableArray array];
+    for (TemporaryHost* host in group) {
+        NSString* label = host.name ?: @"";
+        if ([label hasPrefix:machine]) {
+            label = [[label substringFromIndex:machine.length] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" -·:"]];
+        }
+        [labels addObject:label.length > 0 ? label : ML(@"Main")];
+    }
+    return labels;
+}
+
+- (NSString*) displayKeyOfGroup:(NSArray<TemporaryHost*>*)group {
+    return [@"SelectedDisplay-" stringByAppendingString:group.firstObject.uuid ?: @""];
+}
+
+- (NSInteger) selectedDisplayIndexInGroup:(NSArray<TemporaryHost*>*)group {
+    NSString* uuid = [NSUserDefaults.standardUserDefaults stringForKey:[self displayKeyOfGroup:group]];
+    for (NSUInteger i = 0; i < group.count; i++) {
+        if ([group[i].uuid isEqualToString:uuid]) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+- (void) selectDisplay:(TemporaryHost*)host inGroup:(NSArray<TemporaryHost*>*)group {
+    [NSUserDefaults.standardUserDefaults setObject:host.uuid forKey:[self displayKeyOfGroup:group]];
+    [self updateHostCards];
+}
+
 - (NSArray<TemporaryHost*>*) otherDisplaysOfSelectedHost {
     TemporaryHost* current = _selectedHost;
     NSMutableArray<TemporaryHost*>* displays = [NSMutableArray array];
@@ -868,6 +970,18 @@ static NSMutableSet* hostList;
 
 - (void) switchToHostAfterStream:(TemporaryHost*)host {
     _switchHost = host;
+    // Home's card for this PC then shows the display switched to
+    NSArray<TemporaryHost*>* group = nil;
+    @synchronized (hostList) {
+        for (NSArray<TemporaryHost*>* candidate in [self machineGroupsOfHosts:[[hostList allObjects] sortedArrayUsingSelector:@selector(compareName:)]]) {
+            if ([candidate containsObject:host]) {
+                group = candidate;
+            }
+        }
+    }
+    if (group.count > 1) {
+        [NSUserDefaults.standardUserDefaults setObject:host.uuid forKey:[self displayKeyOfGroup:group]];
+    }
 }
 
 - (void) showSettingsForHost:(TemporaryHost*)host {
@@ -2071,8 +2185,10 @@ static NSMutableSet* hostList;
 
     __block CGFloat y = 8;
     __weak typeof(self) weakSelf = self;
-    void (^section)(NSString*, NSArray*) = ^(NSString* title, NSArray* hosts) {
-        if (hosts.count == 0) {
+    // Each entry is one card: a PC, or several Sunshine instances on the same
+    // machine (one per display) merged into one card with a display picker
+    void (^section)(NSString*, NSArray<NSArray<TemporaryHost*>*>*) = ^(NSString* title, NSArray<NSArray<TemporaryHost*>*>* groups) {
+        if (groups.count == 0) {
             return;
         }
         UILabel* header = [[UILabel alloc] init];
@@ -2082,21 +2198,46 @@ static NSMutableSet* hostList;
         header.frame = CGRectMake(left + 4, y + 8, cardWidth * columns, 20);
         [self->hostScrollView addSubview:header];
         y += 34;
-        for (NSUInteger i = 0; i < hosts.count; i++) {
-            TemporaryHost* host = hosts[i];
-            HostCardView* card = [[HostCardView alloc] initWithHost:host];
+        CGFloat rowHeight = 0;
+        for (NSUInteger i = 0; i < groups.count; i++) {
+            NSArray<TemporaryHost*>* group = groups[i];
+            TemporaryHost* host = group.firstObject;
+            HostCardView* card;
+            CGFloat height = cardHeight;
+            if (group.count > 1) {
+                NSInteger selected = [self selectedDisplayIndexInGroup:group];
+                host = group[selected];
+                card = [[HostCardView alloc] initWithHost:host title:[self machineNameOfGroup:group]
+                                                 displays:[self displayLabelsOfGroup:group] selected:selected];
+                card.onDisplayChosen = ^(NSInteger index) {
+                    [weakSelf selectDisplay:group[index] inGroup:group];
+                };
+                height += 42;
+            }
+            else {
+                card = [[HostCardView alloc] initWithHost:host];
+            }
             card.onTap = ^(HostCardView* view) { [weakSelf connectToHost:host view:view]; };
             card.onLongPress = ^(HostCardView* view) { [weakSelf hostLongClicked:host view:view]; };
             card.onPower = ^(HostCardView* view) { [weakSelf wakeHost:host]; };
             card.onSettings = ^(HostCardView* view) { [weakSelf showSettingsForHost:host]; };
-            NSUInteger column = i % columns, row = i / columns;
-            card.frame = CGRectMake(left + column * (cardWidth + gap), y + row * (cardHeight + gap), cardWidth, cardHeight);
+            NSUInteger column = i % columns;
+            if (column == 0 && i > 0) {
+                y += rowHeight + gap;
+                rowHeight = 0;
+            }
+            card.frame = CGRectMake(left + column * (cardWidth + gap), y, cardWidth, height);
+            rowHeight = MAX(rowHeight, height);
             [self->hostScrollView addSubview:card];
         }
-        y += ((hosts.count + columns - 1) / columns) * (cardHeight + gap) + 4;
+        y += rowHeight + gap + 4;
     };
-    section(ML(@"MY PCS"), registered);
-    section(ML(@"FOUND ON THIS NETWORK · TAP TO PAIR"), found);
+    NSMutableArray<NSArray<TemporaryHost*>*>* foundCards = [NSMutableArray array];
+    for (TemporaryHost* host in found) {
+        [foundCards addObject:@[host]];
+    }
+    section(ML(@"MY PCS"), [self machineGroupsOfHosts:registered]);
+    section(ML(@"FOUND ON THIS NETWORK · TAP TO PAIR"), foundCards);
 
     if (sortedHostList.count == 0) {
         // Searching: say so, and where to add a PC
