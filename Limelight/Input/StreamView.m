@@ -458,6 +458,7 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
         }
         else {
             config.attributedTitle = [[NSAttributedString alloc] initWithString:title attributes:@{NSFontAttributeName: [UIFont systemFontOfSize:15 weight:UIFontWeightMedium]}];
+            config.titleLineBreakMode = NSLineBreakByClipping;
         }
         UIButton* button = [UIButton buttonWithConfiguration:config primaryAction:nil];
         button.accessibilityLabel = title;
@@ -480,11 +481,14 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     UIButton* display = key(@"Display", @"display.2", 0, NO);
     [display removeTarget:self action:@selector(accessoryKeyTapped:) forControlEvents:UIControlEventPrimaryActionTriggered];
     [display addTarget:self action:@selector(displayKeyTapped) forControlEvents:UIControlEventPrimaryActionTriggered];
+    // Word keys on the top row and symbol keys on the bottom one, which has
+    // the extra key: symbols fit a narrow key, words wrapped ("Hom" over "e")
     NSArray* rows = @[@[key(@"Esc", nil, 0x1B, NO), key(@"Tab", nil, 0x09, NO), key(@"Ctrl", nil, 0xA2, YES),
-                        key(@"Alt", nil, 0xA4, YES), key(@"Shift", nil, 0xA0, YES), key(@"Win", @"windows", 0x5B, NO),
-                        key(@"Delete", @"delete.right", 0x2E, NO)],
+                        key(@"Alt", nil, 0xA4, YES), key(@"Shift", nil, 0xA0, YES), key(@"Home", nil, 0x24, NO),
+                        key(@"End", nil, 0x23, NO)],
                       @[key(@"Left", @"arrow.left", 0x25, NO), key(@"Up", @"arrow.up", 0x26, NO), key(@"Down", @"arrow.down", 0x28, NO),
-                        key(@"Right", @"arrow.right", 0x27, NO), key(@"Home", nil, 0x24, NO), key(@"End", nil, 0x23, NO), display, settings]];
+                        key(@"Right", @"arrow.right", 0x27, NO), key(@"Win", @"windows", 0x5B, NO),
+                        key(@"Delete", @"delete.right", 0x2E, NO), display, settings]];
     UIStackView* stack = [[UIStackView alloc] init];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 6;

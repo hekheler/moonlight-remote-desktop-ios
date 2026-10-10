@@ -620,8 +620,8 @@
     CGFloat composeHeight = _composing ? 100 : 0;
     _composeBar.frame = CGRectMake(left, inputBottom - composeHeight, MAX(0, bounds.size.width - left - right), composeHeight);
     CGFloat composeWidth = _composeBar.bounds.size.width;
-    _composeField.frame = CGRectMake(8, 6, MAX(0, composeWidth - 84), 64);
-    _sendTextButton.frame = CGRectMake(MAX(8, composeWidth - 68), 12, 60, 50);
+    _composeField.frame = CGRectMake(8, 6, MAX(0, composeWidth - 100), 64);
+    _sendTextButton.frame = CGRectMake(MAX(8, composeWidth - 84), 12, 76, 50);
     _composeHint.frame = CGRectMake(10, 72, MAX(0, composeWidth - 20), 24);
     _closeButton.hidden = _rotateButton.hidden = !showControls;
     _panModeButton.hidden = !showControls;
@@ -1001,6 +1001,9 @@
     _composeHint.minimumScaleFactor = 0.8;
     UIButtonConfiguration *config = [UIButtonConfiguration filledButtonConfiguration];
     config.title = @"Send";
+    // One line; it wrapped to "Sen" over "d" when narrow
+    config.titleLineBreakMode = NSLineBreakByClipping;
+    config.contentInsets = NSDirectionalEdgeInsetsMake(6, 6, 6, 6);
     __weak typeof(self) weakSelf = self;
     _composeField.canDeleteRemote = ^BOOL{
         typeof(self) s = weakSelf;
