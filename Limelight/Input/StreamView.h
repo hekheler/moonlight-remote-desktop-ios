@@ -25,6 +25,9 @@
 // The settings key in the PC key bar
 - (void) streamSettingsRequested;
 - (void) streamToggleTextInput;
+// A trackpad move in this view's points. Returns YES when the controller sent
+// it to the PC itself (portrait fill), NO to send it as a relative move.
+- (BOOL) streamPointerMovedBy:(CGPoint)delta;
 
 @end
 
@@ -48,6 +51,8 @@
 - (CGSize) getVideoAreaSize;
 - (CGFloat) videoAspectRatio;
 - (void) updateVideoSize:(CGSize)size;
+// See streamPointerMovedBy: in UserInteractionDelegate
+- (BOOL) forwardPointerMove:(CGPoint)delta;
 #if !TARGET_OS_TV
 // PC keys (Esc, Tab, Ctrl, arrows...) as a view to place under the picture
 - (UIView*) makeKeyBar;

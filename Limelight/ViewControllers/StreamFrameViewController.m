@@ -276,6 +276,10 @@
     // Shown while the picture is zoomed or moved
     UIButton *_resetViewButton;
     UIButton *_panModeButton;
+    UIButton *_fillButton;
+    // Portrait fill: the pointer position kept here, in stream pixels
+    CGPoint _pointer;
+    BOOL _pointerPlaced;
     NSString *_rotateSymbol; // current rotate icon, to avoid needless updates
     BOOL _specialKeysVisible;
     // Portrait only: PC keys under the picture, trackpad below them
@@ -518,6 +522,10 @@
         [s setPanMode:enabled];
         UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, enabled ? @"Drag to move the picture" : @"Back to controlling the PC");
     });
+    _fillButton = glassCircle(@"arrow.up.and.down", @"Fill Screen", ^{
+        [weakSelf togglePortraitFill];
+    });
+    [self updateFillButton];
     _specialKeysButton = glassCircle(@"command", ML(@"Special Keys"), ^{
         typeof(self) strongSelf = weakSelf;
         if (!strongSelf) return;
@@ -558,14 +566,14 @@
     _keyBar = keyPanel;
     [self createComposeBar];
     _trackpad = [[StreamTrackpadView alloc] initWithFrame:CGRectZero];
-    for (UIView* view in @[_keyBar, _trackpad, _composeBar, _closeButton, _rotateButton, _panModeButton, _keyboardButton, _hideKeyboardButton, _specialKeysButton]) {
+    for (UIView* view in @[_keyBar, _trackpad, _composeBar, _closeButton, _rotateButton, _fillButton, _panModeButton, _keyboardButton, _hideKeyboardButton, _specialKeysButton]) {
         view.hidden = YES; // Shown once the stream is running
         [self.view addSubview:view];
     }
     [self.view addSubview:_resetViewButton];
     // Stacking order, set once: trackpad, then the panels over it, then the
     // buttons. (Reordering during layout would trigger layout again.)
-    for (UIView* view in @[_trackpad, _keyBar, _composeBar, _closeButton, _rotateButton, _panModeButton, _resetViewButton, _keyboardButton, _hideKeyboardButton, _specialKeysButton]) {
+    for (UIView* view in @[_trackpad, _keyBar, _composeBar, _closeButton, _rotateButton, _fillButton, _panModeButton, _resetViewButton, _keyboardButton, _hideKeyboardButton, _specialKeysButton]) {
         [self.view bringSubviewToFront:view];
     }
 
@@ -617,10 +625,11 @@
     _composeHint.frame = CGRectMake(10, 72, MAX(0, composeWidth - 20), 24);
     _closeButton.hidden = _rotateButton.hidden = !showControls;
     _panModeButton.hidden = !showControls;
+    _fillButton.hidden = !(portrait && showControls);
     _keyboardButton.hidden = !showControls || _keyboardOverlap > 0;
     _hideKeyboardButton.hidden = !showControls || _keyboardOverlap == 0;
     _hideKeyboardButton.frame = CGRectMake(CGRectGetMaxX(bounds) - right - button, CGRectGetMaxY(bounds) - _keyboardOverlap - 8 - button, button, button);
-    _trackpad.hidden = !(portrait && showControls);
+    _trackpad.hidden = !(portrait && showControls && ![self portraitFillActive]);
     _keyBar.hidden = !(showControls && _specialKeysVisible);
     _specialKeysButton.hidden = !showControls;
     if (_specialKeysButton.selected != _specialKeysVisible) {
@@ -639,31 +648,46 @@
         CGFloat aspect = [_streamView videoAspectRatio];
         CGFloat videoTop = safe.top;
         CGFloat bottomEdge = inputBottom - composeHeight;
-        // Always the full screen width; the trackpad takes what is left
-        (void)minTrackpad;
-        CGFloat videoWidth = bounds.size.width;
-        CGFloat videoHeight = videoWidth / aspect;
-        streamFrame = CGRectMake((bounds.size.width - videoWidth) / 2, videoTop, videoWidth, videoHeight);
-        CGFloat trackpadTop = CGRectGetMaxY(streamFrame) + gap;
-        // Special keys lie over the top of the trackpad; the close and rotate
-        // buttons move below them while they are shown
-        const CGFloat keyBarHeight = 96;
-        CGFloat controlsTop = trackpadTop + 8 + (_specialKeysVisible ? keyBarHeight + 4 : 0);
-        _trackpad.frame = CGRectMake(left - 8, trackpadTop, bounds.size.width - (left - 8) - (right - 8), MAX(60, bottomEdge - gap - trackpadTop));
-        if ([[NSUserDefaults standardUserDefaults] boolForKey:MLControlsOnRightKey]) {
-            // Option: close at the far right, rotate next to it
-            _closeButton.frame = CGRectMake(CGRectGetMaxX(_trackpad.frame) - 8 - button, controlsTop, button, button);
-            _rotateButton.frame = CGRectMake(CGRectGetMinX(_closeButton.frame) - 8 - button, controlsTop, button, button);
+        if ([self portraitFillActive]) {
+            // Fill: the picture takes everything down to the keyboard and is
+            // itself the trackpad. The buttons float over its lower edge.
+            streamFrame = CGRectMake(0, videoTop, bounds.size.width, MAX(100, bottomEdge - videoTop));
+            CGFloat rowTop = CGRectGetMaxY(streamFrame) - 8 - button;
+            const CGFloat keyBarHeight = 96;
+            _keyBar.frame = CGRectMake(left - 8, rowTop - 8 - keyBarHeight, bounds.size.width - (left - 8) - (right - 8), keyBarHeight);
+            _keyboardButton.frame = CGRectMake(CGRectGetMaxX(bounds) - right - button, rowTop, button, button);
+            _hideKeyboardButton.frame = _keyboardButton.frame;
+            _specialKeysButton.frame = CGRectMake(CGRectGetMinX(_keyboardButton.frame) - 8 - button, rowTop, button, button);
+            _closeButton.frame = CGRectMake(left, rowTop, button, button);
+            _rotateButton.frame = CGRectMake(CGRectGetMaxX(_closeButton.frame) + 8, rowTop, button, button);
         }
         else {
-            _closeButton.frame = CGRectMake(CGRectGetMinX(_trackpad.frame) + 8, controlsTop, button, button);
-            _rotateButton.frame = CGRectMake(CGRectGetMaxX(_closeButton.frame) + 8, CGRectGetMinY(_closeButton.frame), button, button);
+            // Always the full screen width; the trackpad takes what is left
+            (void)minTrackpad;
+            CGFloat videoWidth = bounds.size.width;
+            CGFloat videoHeight = videoWidth / aspect;
+            streamFrame = CGRectMake((bounds.size.width - videoWidth) / 2, videoTop, videoWidth, videoHeight);
+            CGFloat trackpadTop = CGRectGetMaxY(streamFrame) + gap;
+            // Special keys lie over the top of the trackpad; the close and rotate
+            // buttons move below them while they are shown
+            const CGFloat keyBarHeight = 96;
+            CGFloat controlsTop = trackpadTop + 8 + (_specialKeysVisible ? keyBarHeight + 4 : 0);
+            _trackpad.frame = CGRectMake(left - 8, trackpadTop, bounds.size.width - (left - 8) - (right - 8), MAX(60, bottomEdge - gap - trackpadTop));
+            if ([[NSUserDefaults standardUserDefaults] boolForKey:MLControlsOnRightKey]) {
+                // Option: close at the far right, rotate next to it
+                _closeButton.frame = CGRectMake(CGRectGetMaxX(_trackpad.frame) - 8 - button, controlsTop, button, button);
+                _rotateButton.frame = CGRectMake(CGRectGetMinX(_closeButton.frame) - 8 - button, controlsTop, button, button);
+            }
+            else {
+                _closeButton.frame = CGRectMake(CGRectGetMinX(_trackpad.frame) + 8, controlsTop, button, button);
+                _rotateButton.frame = CGRectMake(CGRectGetMaxX(_closeButton.frame) + 8, CGRectGetMinY(_closeButton.frame), button, button);
+            }
+            _keyboardButton.frame = CGRectMake(CGRectGetMaxX(_trackpad.frame) - 8 - button, CGRectGetMaxY(_trackpad.frame) - 8 - button, button, button);
+            _hideKeyboardButton.frame = _keyboardButton.frame;
+            // Special keys button next to the keyboard button
+            _specialKeysButton.frame = CGRectMake(CGRectGetMinX(_keyboardButton.frame) - 8 - button, CGRectGetMinY(_keyboardButton.frame), button, button);
+            _keyBar.frame = CGRectMake(CGRectGetMinX(_trackpad.frame), CGRectGetMinY(_trackpad.frame), CGRectGetWidth(_trackpad.frame), keyBarHeight);
         }
-        _keyboardButton.frame = CGRectMake(CGRectGetMaxX(_trackpad.frame) - 8 - button, CGRectGetMaxY(_trackpad.frame) - 8 - button, button, button);
-        _hideKeyboardButton.frame = _keyboardButton.frame;
-        // Special keys button next to the keyboard button
-        _specialKeysButton.frame = CGRectMake(CGRectGetMinX(_keyboardButton.frame) - 8 - button, CGRectGetMinY(_keyboardButton.frame), button, button);
-        _keyBar.frame = CGRectMake(CGRectGetMinX(_trackpad.frame), CGRectGetMinY(_trackpad.frame), CGRectGetWidth(_trackpad.frame), keyBarHeight);
     }
     else {
         // Landscape: the picture stays full screen under the keyboard. While
@@ -689,21 +713,43 @@
             streamFrame.origin.y -= MAX(0, _keyboardOverlap + composeHeight - lowerMargin);
         }
     }
-    _panModeButton.frame = CGRectMake(CGRectGetMaxX(_rotateButton.frame) + 8, CGRectGetMinY(_rotateButton.frame), button, button);
-    _resetViewButton.frame = CGRectMake(CGRectGetMaxX(_panModeButton.frame) + 8, CGRectGetMinY(_rotateButton.frame), button, button);
-    if ([[NSUserDefaults standardUserDefaults] boolForKey:MLControlsOnRightKey] && portrait) {
-        _panModeButton.frame = CGRectMake(CGRectGetMinX(_rotateButton.frame) - 8 - button, CGRectGetMinY(_rotateButton.frame), button, button);
-        _resetViewButton.frame = CGRectMake(CGRectGetMinX(_panModeButton.frame) - 8 - button, CGRectGetMinY(_rotateButton.frame), button, button);
+    // After rotate: fill (portrait only), move picture, reset. Leftwards when
+    // the controls sit on the right.
+    BOOL controlsOnRight = [[NSUserDefaults standardUserDefaults] boolForKey:MLControlsOnRightKey] && portrait && ![self portraitFillActive];
+    CGRect next = _rotateButton.frame;
+    for (UIButton* control in portrait ? @[_fillButton, _panModeButton, _resetViewButton] : @[_panModeButton, _resetViewButton]) {
+        next.origin.x += controlsOnRight ? -(8 + button) : 8 + button;
+        control.frame = next;
     }
 
 #endif
     if (_scrollView != nil) {
         BOOL viewportChanged = !CGSizeEqualToSize(_scrollView.bounds.size, streamFrame.size);
         _scrollView.frame = streamFrame;
+        // Portrait fill: the picture is as tall as the area and wider than it.
+        // Pinching out as far as the whole picture is allowed.
+        BOOL fill = [self portraitFillActive];
+        CGSize content = streamFrame.size;
+        if (fill) {
+            content = CGSizeMake(round(streamFrame.size.height * [_streamView videoAspectRatio]), streamFrame.size.height);
+        }
+        _scrollView.minimumZoomScale = fill ? MIN(1.0, streamFrame.size.width / content.width) : 1.0;
+        if (_scrollView.zoomScale < _scrollView.minimumZoomScale) {
+            // Pinched out in fill, then rotated or switched fill off
+            [_scrollView setZoomScale:_scrollView.minimumZoomScale animated:NO];
+        }
         if (_scrollView.zoomScale == 1.0) {
-            _streamView.frame = CGRectMake(0, 0, streamFrame.size.width, streamFrame.size.height);
-            _scrollView.contentSize = streamFrame.size;
-            if (viewportChanged) [_scrollView setContentOffset:CGPointZero animated:NO];
+            BOOL contentChanged = !CGSizeEqualToSize(_streamView.frame.size, content);
+            _streamView.frame = CGRectMake(0, 0, content.width, content.height);
+            _scrollView.contentSize = content;
+            if (viewportChanged || contentChanged) {
+                if (fill) {
+                    [self followPointerCentered:YES];
+                }
+                else {
+                    [_scrollView setContentOffset:CGPointZero animated:NO];
+                }
+            }
         }
     }
     else {
@@ -774,6 +820,21 @@
     if (_scrollView == nil) {
         return;
     }
+    if ([self portraitFillActive]) {
+        // Centre the picture when pinched out smaller than the screen. The
+        // view follows the pointer, so two fingers scroll the PC instead of
+        // moving the picture, unless Move Picture is on.
+        CGSize size = _scrollView.bounds.size, content = _scrollView.contentSize;
+        CGFloat x = MAX(0, (size.width - content.width) / 2), y = MAX(0, (size.height - content.height) / 2);
+        UIEdgeInsets room = UIEdgeInsetsMake(y, x, y, x);
+        if (!UIEdgeInsetsEqualToEdgeInsets(_scrollView.contentInset, room)) {
+            _scrollView.contentInset = room;
+        }
+        _scrollView.panGestureRecognizer.enabled = _streamView.panOnly;
+        [self updateResetButton];
+        return;
+    }
+    _scrollView.panGestureRecognizer.enabled = YES;
     BOOL free = _scrollView.zoomScale > 1.01 || _streamView.panOnly;
     CGSize size = _scrollView.bounds.size;
     UIEdgeInsets room = free ? UIEdgeInsetsMake(size.height * 0.75, size.width * 0.75, size.height * 0.75, size.width * 0.75) : UIEdgeInsetsZero;
@@ -795,13 +856,103 @@
 - (void)updateResetButton {
     BOOL moved = _scrollView != nil && (_scrollView.zoomScale > 1.01 ||
                                         fabs(_scrollView.contentOffset.x) > 2 || fabs(_scrollView.contentOffset.y) > 2);
+    if ([self portraitFillActive]) {
+        // Fill scrolls with the pointer all the time; only zoom counts
+        moved = fabs(_scrollView.zoomScale - 1.0) > 0.01;
+    }
     _resetViewButton.hidden = !(_streamRunning && moved);
 }
 
 - (void)resetView {
+    if ([self portraitFillActive]) {
+        [_scrollView setZoomScale:1.0 animated:NO];
+        [self followPointerCentered:YES];
+        [self updateZoomRoom];
+        return;
+    }
     [_scrollView setZoomScale:1.0 animated:YES];
     [_scrollView setContentOffset:CGPointZero animated:YES];
     [self updateZoomRoom];
+}
+
+// ---- Portrait fill, like Chrome Remote Desktop
+
+- (BOOL)portraitFillActive {
+    return _scrollView != nil && self.view.bounds.size.height > self.view.bounds.size.width &&
+        MLBoolPreference(MLPortraitFillKey, NO);
+}
+
+- (void)togglePortraitFill {
+    [NSUserDefaults.standardUserDefaults setBool:!MLBoolPreference(MLPortraitFillKey, NO) forKey:MLPortraitFillKey];
+    [self setPanMode:NO];
+    [_scrollView setZoomScale:1.0 animated:NO];
+    [self updateFillButton];
+    [self.view setNeedsLayout];
+    [self.view layoutIfNeeded];
+    [self updateZoomRoom];
+}
+
+- (void)updateFillButton {
+    BOOL fill = MLBoolPreference(MLPortraitFillKey, NO);
+    UIButtonConfiguration *configuration = _fillButton.configuration;
+    configuration.baseForegroundColor = fill ? UIColor.systemBlueColor : UIColor.whiteColor;
+    _fillButton.configuration = configuration;
+    _fillButton.accessibilityLabel = fill ? @"Fill Screen, on" : @"Fill Screen";
+}
+
+// In portrait fill the app keeps the pointer position itself and sends it to
+// the PC as an absolute position, so the view always knows where the pointer
+// is and can follow it. Other modes send relative moves as before.
+- (BOOL)streamPointerMovedBy:(CGPoint)delta {
+    CGFloat width = self.streamConfig.width, height = self.streamConfig.height;
+    CGSize viewSize = _streamView.bounds.size;
+    if (![self portraitFillActive] || width <= 0 || height <= 0 || viewSize.width <= 0 || viewSize.height <= 0) {
+        return NO;
+    }
+    if (!_pointerPlaced) {
+        // Where the PC's pointer is now is unknown; start in the middle of what is on screen
+        CGRect visible = [_scrollView convertRect:_scrollView.bounds toView:_streamView];
+        _pointer = CGPointMake(CGRectGetMidX(visible) * width / viewSize.width, CGRectGetMidY(visible) * height / viewSize.height);
+        _pointerPlaced = YES;
+    }
+    CGFloat speed = MLTrackpadSpeed();
+    _pointer.x = MIN(MAX(_pointer.x + delta.x * speed * width / viewSize.width, 0), width - 1);
+    _pointer.y = MIN(MAX(_pointer.y + delta.y * speed * height / viewSize.height, 0), height - 1);
+    LiSendMousePositionEvent((short)_pointer.x, (short)_pointer.y, (short)width, (short)height);
+    [self followPointerCentered:NO];
+    return YES;
+}
+
+// Scrolls so the pointer stays at least a fifth of the screen in from each
+// edge, or centres it. Before the first move it centres the picture.
+- (void)followPointerCentered:(BOOL)centered {
+    CGFloat width = self.streamConfig.width, height = self.streamConfig.height;
+    CGSize viewSize = _streamView.bounds.size;
+    if (_scrollView == nil || width <= 0 || height <= 0) {
+        return;
+    }
+    CGPoint target = _pointerPlaced ? CGPointMake(_pointer.x / width * viewSize.width, _pointer.y / height * viewSize.height)
+                                    : CGPointMake(viewSize.width / 2, viewSize.height / 2);
+    CGPoint point = [_streamView convertPoint:target toView:_scrollView];
+    CGRect visible = _scrollView.bounds;
+    CGPoint offset = visible.origin;
+    if (centered || !_pointerPlaced) {
+        offset = CGPointMake(point.x - visible.size.width / 2, point.y - visible.size.height / 2);
+    }
+    else {
+        CGFloat marginX = visible.size.width / 5, marginY = visible.size.height / 5;
+        if (point.x < CGRectGetMinX(visible) + marginX) offset.x = point.x - marginX;
+        else if (point.x > CGRectGetMaxX(visible) - marginX) offset.x = point.x - visible.size.width + marginX;
+        if (point.y < CGRectGetMinY(visible) + marginY) offset.y = point.y - marginY;
+        else if (point.y > CGRectGetMaxY(visible) - marginY) offset.y = point.y - visible.size.height + marginY;
+    }
+    UIEdgeInsets inset = _scrollView.contentInset;
+    CGSize content = _scrollView.contentSize;
+    offset.x = MIN(MAX(offset.x, -inset.left), MAX(-inset.left, content.width - visible.size.width + inset.right));
+    offset.y = MIN(MAX(offset.y, -inset.top), MAX(-inset.top, content.height - visible.size.height + inset.bottom));
+    if (!CGPointEqualToPoint(offset, visible.origin)) {
+        [_scrollView setContentOffset:offset animated:NO];
+    }
 }
 
 - (void)scrollViewDidZoom:(UIScrollView *)scrollView {

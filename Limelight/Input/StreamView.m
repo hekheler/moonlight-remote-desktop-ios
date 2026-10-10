@@ -194,6 +194,11 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     return fit;
 }
 
+- (BOOL)forwardPointerMove:(CGPoint)delta {
+    return [interactionDelegate respondsToSelector:@selector(streamPointerMovedBy:)] &&
+        [interactionDelegate streamPointerMovedBy:delta];
+}
+
 - (CGFloat)videoAspectRatio {
     return streamAspectRatio > 0 ? streamAspectRatio : 1;
 }

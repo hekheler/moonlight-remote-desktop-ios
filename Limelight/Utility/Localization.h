@@ -17,6 +17,8 @@ static NSString* const MLPanOnStartKey = @"PanOnStreamStart";
 // Keep the stored key so existing ON/OFF preferences survive the timing change.
 static NSString* const MLImeOffBeforeTextSendKey = @"ImeOffOnInputStart";
 static NSString* const MLShiftForKeyboardKey = @"LandscapeShiftForKeyboard";
+// YES: in portrait the picture fills the screen height and is a trackpad
+static NSString* const MLPortraitFillKey = @"PortraitFill";
 
 static inline BOOL MLBoolPreference(NSString *key, BOOL defaultValue) {
     NSNumber *value = [NSUserDefaults.standardUserDefaults objectForKey:key];

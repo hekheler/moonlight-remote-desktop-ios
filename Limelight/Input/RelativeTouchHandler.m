@@ -85,7 +85,17 @@ static const int REFERENCE_HEIGHT = 720;
         UITouch *touch = [[event allTouches] anyObject];
         CGPoint currentLocation = [touch locationInView:view];
         
-        if (touchLocation.x != currentLocation.x ||
+        if ((touchLocation.x != currentLocation.x || touchLocation.y != currentLocation.y) &&
+            [(StreamView*)view forwardPointerMove:CGPointMake(currentLocation.x - touchLocation.x,
+                                                             currentLocation.y - touchLocation.y)])
+        {
+            // The controller placed the pointer itself (portrait fill)
+            touchLocation = currentLocation;
+            if ([self isConfirmedMove:touchLocation from:originalLocation]) {
+                touchMoved = true;
+            }
+        }
+        else if (touchLocation.x != currentLocation.x ||
             touchLocation.y != currentLocation.y)
         {
             int deltaX = (currentLocation.x - touchLocation.x) * (REFERENCE_WIDTH / view.bounds.size.width);
