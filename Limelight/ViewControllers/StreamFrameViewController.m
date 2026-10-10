@@ -915,9 +915,12 @@
         _pointer = CGPointMake(CGRectGetMidX(visible) * width / viewSize.width, CGRectGetMidY(visible) * height / viewSize.height);
         _pointerPlaced = YES;
     }
-    CGFloat speed = MLTrackpadSpeed();
-    _pointer.x = MIN(MAX(_pointer.x + delta.x * speed * width / viewSize.width, 0), width - 1);
-    _pointer.y = MIN(MAX(_pointer.y + delta.y * speed * height / viewSize.height, 0), height - 1);
+    // The pointer moves as far across the picture as the finger moves across
+    // the screen, at any zoom. The trackpad speed setting scales that; its
+    // default of 2 means one to one here.
+    CGFloat scale = MLTrackpadSpeed() / 2.0 / MAX(_scrollView.zoomScale, 0.01);
+    _pointer.x = MIN(MAX(_pointer.x + delta.x * scale * width / viewSize.width, 0), width - 1);
+    _pointer.y = MIN(MAX(_pointer.y + delta.y * scale * height / viewSize.height, 0), height - 1);
     LiSendMousePositionEvent((short)_pointer.x, (short)_pointer.y, (short)width, (short)height);
     [self followPointerCentered:NO];
     return YES;

@@ -85,9 +85,13 @@ static const int REFERENCE_HEIGHT = 720;
         UITouch *touch = [[event allTouches] anyObject];
         CGPoint currentLocation = [touch locationInView:view];
         
+        // Measured on the screen, not in this view: in portrait fill the view
+        // scrolls under the finger to follow the pointer, and measuring in it
+        // would count that scroll as more finger movement.
+        CGPoint screenNow = [touch locationInView:nil], screenBefore = [touch previousLocationInView:nil];
         if ((touchLocation.x != currentLocation.x || touchLocation.y != currentLocation.y) &&
-            [(StreamView*)view forwardPointerMove:CGPointMake(currentLocation.x - touchLocation.x,
-                                                             currentLocation.y - touchLocation.y)])
+            [(StreamView*)view forwardPointerMove:CGPointMake(screenNow.x - screenBefore.x,
+                                                             screenNow.y - screenBefore.y)])
         {
             // The controller placed the pointer itself (portrait fill)
             touchLocation = currentLocation;
