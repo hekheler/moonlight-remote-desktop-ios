@@ -280,6 +280,9 @@
     // Portrait fill: the pointer position kept here, in stream pixels
     CGPoint _pointer;
     BOOL _pointerPlaced;
+    // Smoothed finger speed in screen points per second, for acceleration
+    CGFloat _fingerSpeed;
+    CFTimeInterval _lastPointerMove;
     NSString *_rotateSymbol; // current rotate icon, to avoid needless updates
     BOOL _specialKeysVisible;
     // Portrait only: PC keys under the picture, trackpad below them
@@ -915,10 +918,22 @@
         _pointer = CGPointMake(CGRectGetMidX(visible) * width / viewSize.width, CGRectGetMidY(visible) * height / viewSize.height);
         _pointerPlaced = YES;
     }
-    // The pointer moves as far across the picture as the finger moves across
-    // the screen, at any zoom. The trackpad speed setting scales that; its
-    // default of 2 means one to one here.
-    CGFloat scale = MLTrackpadSpeed() / 2.0 / MAX(_scrollView.zoomScale, 0.01);
+    // Acceleration, like a laptop trackpad. The PC never sees relative moves
+    // here, so its own pointer acceleration does not apply; this replaces it.
+    // A slow finger moves the pointer 1.25 times as far across the picture as
+    // the finger moves across the screen, for fine control. A fast flick
+    // ramps up to 4 times, to cross the desktop in one swipe. The finger speed
+    // is smoothed so the gain does not twitch, and the trackpad speed setting
+    // scales the whole curve (its default of 2 leaves it as described).
+    CFTimeInterval now = CACurrentMediaTime();
+    CFTimeInterval elapsed = now - _lastPointerMove;
+    _lastPointerMove = now;
+    CGFloat speedNow = elapsed > 0 && elapsed < 0.1 ? hypot(delta.x, delta.y) / elapsed : 0;
+    _fingerSpeed = elapsed < 0.1 ? 0.6 * _fingerSpeed + 0.4 * speedNow : 0;
+    const CGFloat slowSpeed = 150, fastSpeed = 1500, slowGain = 1.25, fastGain = 4.0;
+    CGFloat ramp = MIN(MAX((_fingerSpeed - slowSpeed) / (fastSpeed - slowSpeed), 0), 1);
+    CGFloat gain = slowGain + (fastGain - slowGain) * ramp;
+    CGFloat scale = gain * MLTrackpadSpeed() / 2.0 / MAX(_scrollView.zoomScale, 0.01);
     _pointer.x = MIN(MAX(_pointer.x + delta.x * scale * width / viewSize.width, 0), width - 1);
     _pointer.y = MIN(MAX(_pointer.y + delta.y * scale * height / viewSize.height, 0), height - 1);
     LiSendMousePositionEvent((short)_pointer.x, (short)_pointer.y, (short)width, (short)height);
@@ -1201,7 +1216,8 @@
                                            _overlayView.frame.size.height)];
         [_overlayView setText:text];
         [_overlayView sizeToFit];
-        [_overlayView setCenter:CGPointMake(self.view.frame.size.width / 2, _overlayView.frame.size.height / 2)];
+        // Below the status bar and notch, or its first line is hidden behind them
+        [_overlayView setCenter:CGPointMake(self.view.frame.size.width / 2, self.view.safeAreaInsets.top + _overlayView.frame.size.height / 2)];
         [_overlayView setHidden:NO];
     }
     else {
