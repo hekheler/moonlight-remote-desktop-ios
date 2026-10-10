@@ -915,12 +915,15 @@
         _pointer = CGPointMake(CGRectGetMidX(visible) * width / viewSize.width, CGRectGetMidY(visible) * height / viewSize.height);
         _pointerPlaced = YES;
     }
-    // A fixed speed, the same for the whole drag: the pointer moves 1.5 times
-    // as far across the picture as the finger moves across the screen, at any
-    // zoom. Speed based acceleration was tried in 0.6.2 and 0.6.3 and felt
-    // wrong, because the speed changed partway through a drag. The trackpad
-    // speed setting scales this; its default of 2 leaves it at 1.5.
-    CGFloat scale = 1.5 * MLTrackpadSpeed() / 2.0 / MAX(_scrollView.zoomScale, 0.01);
+    // A fixed speed, the same for the whole drag: at fill zoom the pointer
+    // moves 1.5 times as far across the picture as the finger moves across
+    // the screen. Zoomed in, it moves a little faster on screen than that
+    // (dividing by zoom to the power 0.8 rather than by zoom), about 15% at 2x
+    // and 25% at 3x, so a zoomed in picture does not feel sluggish. Speed
+    // based acceleration was tried in 0.6.2 and 0.6.3 and felt wrong, because
+    // the speed changed partway through a drag. The trackpad speed setting
+    // scales this; its default of 2 leaves it as described.
+    CGFloat scale = 1.5 * MLTrackpadSpeed() / 2.0 / pow(MAX(_scrollView.zoomScale, 0.01), 0.8);
     _pointer.x = MIN(MAX(_pointer.x + delta.x * scale * width / viewSize.width, 0), width - 1);
     _pointer.y = MIN(MAX(_pointer.y + delta.y * scale * height / viewSize.height, 0), height - 1);
     LiSendMousePositionEvent((short)_pointer.x, (short)_pointer.y, (short)width, (short)height);
