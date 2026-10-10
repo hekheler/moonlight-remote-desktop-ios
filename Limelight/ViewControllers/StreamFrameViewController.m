@@ -1169,7 +1169,7 @@
         
         if (portTestResults != ML_TEST_RESULT_INCONCLUSIVE && portTestResults != 0) {
             title = ML(@"Connection Error");
-            message = ML(@"Your device's network connection is blocking Moonlight. Streaming may not work while connected to this network.");
+            message = ML(@"Your device's network connection is blocking Hecate. Streaming may not work while connected to this network.");
         }
         else {
             switch (errorCode) {
@@ -1265,7 +1265,7 @@
             message = [message stringByAppendingString:[NSString stringWithFormat:[@"\n\n" stringByAppendingString:ML(@"Check your firewall and port forwarding rules for port(s):\n%s")], failingPorts]];
         }
         if (portTestResults != ML_TEST_RESULT_INCONCLUSIVE && portTestResults != 0) {
-            message = [message stringByAppendingString:[@"\n\n" stringByAppendingString:ML(@"Your device's network connection is blocking Moonlight. Streaming may not work while connected to this network.")]];
+            message = [message stringByAppendingString:[@"\n\n" stringByAppendingString:ML(@"Your device's network connection is blocking Hecate. Streaming may not work while connected to this network.")]];
         }
         
         UIAlertController* alert = [UIAlertController alertControllerWithTitle:ML(@"Connection Failed")

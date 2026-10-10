@@ -868,15 +868,15 @@ static NSMutableSet* hostList;
                     NSString* message;
 
                     if (portTestResult == 0) {
-                        message = ML(@"This network does not appear to be blocking Moonlight. If you still have trouble connecting, check your PC's firewall settings.\n\nVisit the Moonlight Setup Guide on GitHub for additional setup help and troubleshooting steps.");
+                        message = ML(@"This network does not appear to be blocking Hecate. If you still have trouble connecting, check your PC's firewall settings.\n\nVisit Moonlight's Setup Guide on GitHub for additional setup help and troubleshooting steps.");
                     }
                     else if (portTestResult == ML_TEST_RESULT_INCONCLUSIVE) {
-                        message = ML(@"The network test could not be performed because none of Moonlight's connection testing servers were reachable. Check your Internet connection or try again later.");
+                        message = ML(@"The network test could not be performed because none of the connection testing servers were reachable. Check your Internet connection or try again later.");
                     }
                     else {
                         char blockedPorts[512];
                         LiStringifyPortFlags(portTestResult, "\n", blockedPorts, sizeof(blockedPorts));
-                        message = [NSString stringWithFormat:ML(@"Your current network connection seems to be blocking Moonlight. Streaming may not work while connected to this network.\n\nThe following network ports were blocked:\n%s"), blockedPorts];
+                        message = [NSString stringWithFormat:ML(@"Your current network connection seems to be blocking Hecate. Streaming may not work while connected to this network.\n\nThe following network ports were blocked:\n%s"), blockedPorts];
                     }
 
                     UIAlertController* netTestAlert = [UIAlertController alertControllerWithTitle:ML(@"Network Test Complete") message:message preferredStyle:UIAlertControllerStyleAlert];
@@ -889,7 +889,7 @@ static NSMutableSet* hostList;
 }
 
 - (void) confirmRemoveHost:(TemporaryHost*)host view:(UIView*)view {
-    UIAlertController* confirm = [UIAlertController alertControllerWithTitle:host.name message:ML(@"Remove this PC from Moonlight? You will need to pair again to use it.") preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController* confirm = [UIAlertController alertControllerWithTitle:host.name message:ML(@"Remove this PC from Hecate? You will need to pair again to use it.") preferredStyle:UIAlertControllerStyleAlert];
     [confirm addAction:[UIAlertAction actionWithTitle:ML(@"Cancel") style:UIAlertActionStyleCancel handler:nil]];
     [confirm addAction:[UIAlertAction actionWithTitle:ML(@"Remove Host") style:UIAlertActionStyleDestructive handler:^(UIAlertAction* action) {
         [self->_discMan removeHostFromDiscovery:host];
@@ -1027,7 +1027,7 @@ static NSMutableSet* hostList;
                 unsigned int portTestResults = LiTestClientConnectivity(CONN_TEST_SERVER, 443,
                                                                         ML_PORT_FLAG_TCP_47984 | ML_PORT_FLAG_TCP_47989);
                 if (portTestResults != ML_TEST_RESULT_INCONCLUSIVE && portTestResults != 0) {
-                    error = [error stringByAppendingString:@"\n\nYour device's network connection is blocking Moonlight. Streaming may not work while connected to this network."];
+                    error = [error stringByAppendingString:@"\n\nYour device's network connection is blocking Hecate. Streaming may not work while connected to this network."];
                 }
 
                 [self reportPairing:NO];
